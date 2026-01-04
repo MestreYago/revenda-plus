@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="App de Gestão para Revendedoras">
+    <title>Revenda+ (Pocket)</title>
+    
+    <!-- 1. Tailwind CSS (Estilos) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. React e ReactDOM (Motor do App) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- 3. Babel (Tradutor de código) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Estilos Extras para animações -->
+    <style>
+        /* Esconder scrollbar mas manter funcionalidade */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+        
+        /* Animações simples */
+        @keyframes slide-up {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-up {
+            animation: slide-up 0.3s ease-out forwards;
+        }
+        
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.2s ease-out forwards;
+        }
+
+        /* Scan animation */
+        @keyframes scan {
+          0% { top: 0%; opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
+        .animate-scan {
+            animation: scan 2s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <!-- Feedback visual de carregamento (substituído pelo React quando carregar) -->
+    <div id="root">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#666;">
+            <div style="width:40px;height:40px;border:4px solid #ddd;border-top-color:#9333ea;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:20px;"></div>
+            <p>Carregando sistema...</p>
+            <p style="font-size:12px;margin-top:10px;">Requer internet para carregar na primeira vez.</p>
+            <p id="error-msg" style="color:red;font-size:12px;margin-top:20px;max-width:300px;text-align:center;font-weight:bold;"></p>
+        </div>
+        <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+    </div>
+
+    <!-- Script de Tratamento de Erros (Para aparecer na tela do celular) -->
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            const errorContainer = document.getElementById('error-msg');
+            if (errorContainer) {
+                errorContainer.innerHTML = "⚠️ Ocorreu um erro: " + message + "<br>Linha: " + lineno;
+                // Se o erro for de 'React is not defined', sugere internet
+                if (message && (message.includes('React') || message.includes('Babel') || message.includes('script'))) {
+                    errorContainer.innerHTML += "<br><br><b>Dica: Verifique sua conexão com a internet para carregar o sistema.</b>";
+                }
+            }
+        };
+    </script>
+
+    <!-- CÓDIGO DA APLICAÇÃO -->
+    <script type="text/babel">
+        // --- ÍCONES (SVG Inline para não depender de pacotes externos) ---
+        const Icons = {
+            Home: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+            Package: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22v-9.96"/></svg>,
+            Users: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+            Plus: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
+            Search: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+            ShoppingCart: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>,
+            TrendingUp: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
+            AlertCircle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+            ChevronRight: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>,
+            Wallet: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>,
+            X: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>,
+            Check: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>,
+            Download: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            Upload: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+            Settings: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>,
+            ScanBarcode: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 7v10"/><path d="M12 7v10"/><path d="M17 7v10"/></svg>,
+            Camera: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>,
+            Save: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>,
+            Smartphone: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+        };
+
+        // Extraindo React do global
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- DADOS INICIAIS ---
+        const INITIAL_PRODUCTS = [
+            { id: 1, name: 'Malbec Desodorante Colônia', brand: 'O Boticário', category: 'Perfume', cost: 110.00, price: 190.00, stock: 3, barcode: '7891033785632' },
+            { id: 2, name: 'Essencial Oud Masculino', brand: 'Natura', category: 'Perfume', cost: 130.00, price: 230.00, stock: 1, barcode: '7908056789012' },
+            { id: 3, name: 'Kaiak Tradicional', brand: 'Natura', category: 'Perfume', cost: 80.00, price: 155.00, stock: 5, barcode: '7891234567890' },
+            { id: 4, name: 'Batom Matte Vermelho', brand: 'Eudora', category: 'Maquiagem', cost: 25.00, price: 49.90, stock: 0, barcode: '7891112223334' },
+            { id: 5, name: 'Hidratante Ameixa', brand: 'O Boticário', category: 'Corpo', cost: 40.00, price: 75.00, stock: 8, barcode: '7894445556667' },
+        ];
+
+        const INITIAL_CUSTOMERS = [
+            { id: 1, name: 'Maria Silva', phone: '11999999999', debt: 0, history: [] },
+            { id: 2, name: 'João Santos', phone: '11988888888', debt: 155.00, history: [] },
+        ];
+
+        // --- UTILITÁRIOS ---
+        const formatCurrency = (value) => {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+            }).format(value);
+        };
+
+        const formatDate = (dateString) => {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        };
+
+        // --- COMPONENTES ---
+
+        const StatCard = ({ title, value, subtext, icon: Icon, colorClass, bgClass }) => (
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                <div>
+                    <p className="text-slate-500 text-sm font-medium mb-1">{title}</p>
+                    <h3 className={`text-2xl font-bold ${colorClass}`}>{value}</h3>
+                    {subtext && <p className="text-xs text-slate-400 mt-1">{subtext}</p>}
+                </div>
+                <div className={`p-3 rounded-full ${bgClass}`}>
+                    <Icon className={`w-6 h-6 ${colorClass}`} />
+                </div>
+            </div>
+        );
+
+        const ProductItem = ({ product, onSelect }) => {
+            const isLowStock = product.stock > 0 && product.stock <= 2;
+            const isOutOfStock = product.stock === 0;
+
+            return (
+                <div 
+                    onClick={() => onSelect(product)}
+                    className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 mb-3 flex justify-between items-center active:bg-slate-50 transition-colors cursor-pointer"
+                >
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{product.brand}</span>
+                            {isLowStock && <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold">Acabando</span>}
+                            {isOutOfStock && <span className="text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full font-bold">Sem estoque</span>}
+                        </div>
+                        <h4 className="font-semibold text-slate-800 text-lg leading-tight mt-1">{product.name}</h4>
+                        <div className="flex items-center gap-3">
+                            <p className="text-purple-600 font-bold mt-1">{formatCurrency(product.price)}</p>
+                            {product.barcode && (
+                                <span className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                                    <Icons.ScanBarcode className="w-3 h-3" /> {product.barcode.slice(-4)}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="text-right pl-4 border-l border-slate-100">
+                        <p className="text-xs text-slate-400">Estoque</p>
+                        <p className={`text-xl font-bold ${isOutOfStock ? 'text-rose-500' : 'text-slate-700'}`}>
+                            {product.stock}
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        const ScannerOverlay = ({ isOpen, onClose, onScan, isScanning }) => {
+            if (!isOpen) return null;
+
+            const handleSimulateScan = () => {
+                const randomProduct = INITIAL_PRODUCTS[Math.floor(Math.random() * INITIAL_PRODUCTS.length)];
+                const code = randomProduct ? randomProduct.barcode : '7890000000000';
+                onScan(code);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black z-[60] flex flex-col items-center justify-center">
+                    <div className="absolute top-4 right-4">
+                        <button onClick={onClose} className="text-white p-2">
+                            <Icons.X className="w-8 h-8" />
+                        </button>
+                    </div>
+                    
+                    <div className="w-64 h-64 border-2 border-white/50 rounded-3xl relative overflow-hidden mb-8">
+                        <div className="absolute inset-0 border-2 border-purple-500 rounded-3xl animate-pulse"></div>
+                        <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-scan"></div>
+                        <div className="w-full h-full flex items-center justify-center">
+                            <p className="text-white/50 text-xs text-center px-4">Aponte a câmera para o código de barras</p>
+                        </div>
+                    </div>
+
+                    <p className="text-white mb-8 font-medium">Procurando código...</p>
+
+                    <button 
+                        onClick={handleSimulateScan}
+                        className="bg-white text-slate-900 px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 transition-transform"
+                    >
+                        <Icons.Camera className="w-5 h-5" />
+                        Simular Leitura
+                    </button>
+                    <p className="text-white/40 text-xs mt-4 max-w-xs text-center">(No app real, a câmera usa a API do navegador)</p>
+                </div>
+            );
+        };
+
+        const InstallGuideModal = ({ isOpen, onClose }) => {
+            if (!isOpen) return null;
+            
+            return (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-sm rounded-2xl p-6 relative">
+                        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                            <Icons.X className="w-6 h-6" />
+                        </button>
+                        
+                        <div className="text-center mb-6">
+                            <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Icons.Smartphone className="w-8 h-8 text-purple-600" />
+                            </div>
+                            <h2 className="text-xl font-bold text-slate-800">Instalar Aplicativo</h2>
+                            <p className="text-sm text-slate-500 mt-2">Adicione à tela inicial para usar como um app nativo, sem ocupar espaço!</p>
+                        </div>
+
+                        <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <div className="flex gap-3 items-start">
+                                <div className="bg-white w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-sm border border-slate-200 mt-0.5">1</div>
+                                <p className="text-sm text-slate-600">No seu navegador, toque no ícone de <span className="font-bold">Compartilhar</span> ou <span className="font-bold">Menu</span> (três pontinhos).</p>
+                            </div>
+                            <div className="flex gap-3 items-start">
+                                <div className="bg-white w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-sm border border-slate-200 mt-0.5">2</div>
+                                <p className="text-sm text-slate-600">Procure pela opção <span className="font-bold">"Adicionar à Tela de Início"</span>.</p>
+                            </div>
+                            <div className="flex gap-3 items-start">
+                                <div className="bg-white w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-sm border border-slate-200 mt-0.5">3</div>
+                                <p className="text-sm text-slate-600">Confirme clicando em <span className="font-bold">Adicionar</span>.</p>
+                            </div>
+                        </div>
+
+                        <button onClick={onClose} className="w-full bg-purple-600 text-white py-3 rounded-xl font-bold mt-6">
+                            Entendi
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- TELA PRINCIPAL (APP) ---
+
+        function App() {
+            const loadState = (key, initialValue) => {
+                try {
+                    const saved = localStorage.getItem(key);
+                    return saved ? JSON.parse(saved) : initialValue;
+                } catch (e) { return initialValue; }
+            };
+
+            const [activeTab, setActiveTab] = useState('home'); 
+            const [products, setProducts] = useState(() => loadState('revenda_products', INITIAL_PRODUCTS));
+            const [customers, setCustomers] = useState(() => loadState('revenda_customers', INITIAL_CUSTOMERS));
+            const [transactions, setTransactions] = useState(() => loadState('revenda_transactions', [
+                { id: 101, type: 'sale', date: new Date().toISOString(), total: 50.00, method: 'cash', items: [] }
+            ]));
+
+            useEffect(() => { localStorage.setItem('revenda_products', JSON.stringify(products)); }, [products]);
+            useEffect(() => { localStorage.setItem('revenda_customers', JSON.stringify(customers)); }, [customers]);
+            useEffect(() => { localStorage.setItem('revenda_transactions', JSON.stringify(transactions)); }, [transactions]);
+
+            const [cart, setCart] = useState([]);
+            const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+            const [selectedCustomerForSale, setSelectedCustomerForSale] = useState(null);
+            const [saleType, setSaleType] = useState('cash'); 
+
+            const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+            const [newProduct, setNewProduct] = useState({ name: '', brand: '', stock: '', price: '', cost: '', barcode: '' });
+
+            const [isScannerOpen, setIsScannerOpen] = useState(false);
+            const [scannerContext, setScannerContext] = useState(null);
+            
+            const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+
+            const totalCashToday = useMemo(() => {
+                return transactions
+                    .filter(t => t.type === 'sale' && t.method === 'cash')
+                    .reduce((acc, curr) => acc + curr.total, 0);
+            }, [transactions]);
+
+            const totalDebt = useMemo(() => {
+                return customers.reduce((acc, curr) => acc + curr.debt, 0);
+            }, [customers]);
+
+            const openScanner = (context) => {
+                setScannerContext(context);
+                setIsScannerOpen(true);
+            };
+
+            const handleScanResult = (code) => {
+                setIsScannerOpen(false);
+                
+                if (scannerContext === 'new_product') {
+                    setNewProduct(prev => ({ ...prev, barcode: code }));
+                    alert(`Código lido: ${code}`);
+                } else if (scannerContext === 'search') {
+                    const product = products.find(p => p.barcode === code);
+                    if (product) {
+                        addToCart(product);
+                        if (navigator.vibrate) navigator.vibrate(200);
+                        alert(`Produto encontrado: ${product.name}`);
+                    } else {
+                        alert(`Produto com código ${code} não encontrado.`);
+                    }
+                }
+            };
+
+            const addToCart = (product) => {
+                if (product.stock <= 0) {
+                    alert("Produto sem estoque!");
+                    return;
+                }
+                const existing = cart.find(item => item.id === product.id);
+                if (existing) {
+                    if (existing.qty >= product.stock) {
+                        alert("Quantidade máxima do estoque atingida.");
+                        return;
+                    }
+                    setCart(cart.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+                } else {
+                    setCart([...cart, { ...product, qty: 1 }]);
+                }
+            };
+
+            const finalizeSale = () => {
+                if (cart.length === 0) return;
+                if (saleType === 'credit' && !selectedCustomerForSale) {
+                    alert("Selecione um cliente para vender fiado.");
+                    return;
+                }
+                const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+
+                const updatedProducts = products.map(p => {
+                    const inCart = cart.find(c => c.id === p.id);
+                    if (inCart) {
+                        return { ...p, stock: p.stock - inCart.qty };
+                    }
+                    return p;
+                });
+
+                let updatedCustomers = customers;
+                if (saleType === 'credit') {
+                    updatedCustomers = customers.map(c => {
+                        if (c.id === selectedCustomerForSale.id) {
+                            return { ...c, debt: c.debt + cartTotal };
+                        }
+                        return c;
+                    });
+                }
+
+                const newTransaction = {
+                    id: Date.now(),
+                    type: 'sale',
+                    date: new Date().toISOString(),
+                    total: cartTotal,
+                    method: saleType,
+                    customerId: selectedCustomerForSale ? selectedCustomerForSale.id : null,
+                    items: cart
+                };
+
+                setProducts(updatedProducts);
+                setCustomers(updatedCustomers);
+                setTransactions([newTransaction, ...transactions]);
+                setCart([]);
+                setIsCheckoutModalOpen(false);
+                setSelectedCustomerForSale(null);
+                setSaleType('cash');
+                setActiveTab('home');
+                alert("Venda realizada com sucesso!");
+            };
+
+            const handleAddProduct = () => {
+                if (!newProduct.name || !newProduct.price) return;
+                const product = {
+                    id: Date.now(),
+                    name: newProduct.name,
+                    brand: newProduct.brand || 'Genérico',
+                    category: 'Geral',
+                    stock: parseInt(newProduct.stock) || 0,
+                    cost: parseFloat(newProduct.cost) || 0,
+                    price: parseFloat(newProduct.price) || 0,
+                    barcode: newProduct.barcode || ''
+                };
+                setProducts([...products, product]);
+                setNewProduct({ name: '', brand: '', stock: '', price: '', cost: '', barcode: '' });
+                setIsProductModalOpen(false);
+            };
+
+            const payDebt = (customerId) => {
+                const customer = customers.find(c => c.id === customerId);
+                if (!customer || customer.debt <= 0) return;
+                if (confirm(`Confirmar recebimento total de ${formatCurrency(customer.debt)} de ${customer.name}?`)) {
+                    const updatedCustomers = customers.map(c => {
+                        if (c.id === customerId) return { ...c, debt: 0 };
+                        return c;
+                    });
+                    const newTransaction = {
+                        id: Date.now(),
+                        type: 'payment',
+                        date: new Date().toISOString(),
+                        total: customer.debt,
+                        method: 'cash', 
+                        customerId: customerId,
+                        items: []
+                    };
+                    setCustomers(updatedCustomers);
+                    setTransactions([newTransaction, ...transactions]);
+                }
+            };
+
+            const handleExportData = () => {
+                const data = { products, customers, transactions, exportedAt: new Date().toISOString() };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `backup-revenda-${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            const handleImportData = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (!data.products || !data.customers || !data.transactions) throw new Error("Arquivo inválido");
+                        if (confirm(`Substituir dados atuais pelos do backup?`)) {
+                            setProducts(data.products);
+                            setCustomers(data.customers);
+                            setTransactions(data.transactions);
+                            alert("Dados restaurados!");
+                        }
+                    } catch (err) { alert("Erro ao ler backup."); }
+                };
+                reader.readAsText(file);
+            };
+
+            const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+
+            // --- RENDERS ---
+
+            const renderHome = () => (
+                <div className="space-y-6 pb-24">
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-800">Olá, Revendedora!</h1>
+                            <p className="text-slate-500">Resumo do dia</p>
+                        </div>
+                        <div className="bg-purple-100 p-2 rounded-full">
+                            <Icons.Wallet className="w-6 h-6 text-purple-700" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <StatCard title="Vendas (Dinheiro)" value={formatCurrency(totalCashToday)} icon={Icons.TrendingUp} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
+                        <StatCard title="Total a Receber" value={formatCurrency(totalDebt)} icon={Icons.Users} colorClass="text-rose-500" bgClass="bg-rose-50" />
+                    </div>
+                    <button onClick={() => setActiveTab('sales')} className="w-full bg-purple-600 text-white p-4 rounded-xl shadow-lg shadow-purple-200 flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                        <Icons.Plus className="w-6 h-6" /> <span className="font-bold text-lg">Nova Venda Rápida</span>
+                    </button>
+                    <div>
+                        <div className="flex justify-between items-center mb-3">
+                            <h2 className="font-bold text-slate-700">Estoque Baixo</h2>
+                            <button onClick={() => setActiveTab('products')} className="text-purple-600 text-sm font-medium">Ver tudo</button>
+                        </div>
+                        {products.filter(p => p.stock <= 2).length === 0 ? 
+                            <div className="text-center p-4 bg-slate-50 rounded-lg text-slate-400">Tudo certo com o estoque!</div> :
+                            products.filter(p => p.stock <= 2).map(product => <ProductItem key={product.id} product={product} onSelect={() => {}} />)
+                        }
+                    </div>
+                </div>
+            );
+
+            const renderSales = () => {
+                const [searchTerm, setSearchTerm] = useState('');
+                const filteredProducts = products.filter(p => 
+                    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                    p.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (p.barcode && p.barcode.includes(searchTerm))
+                );
+
+                return (
+                    <div className="pb-24 h-full flex flex-col">
+                        <h1 className="text-2xl font-bold text-slate-800 mb-4">Nova Venda</h1>
+                        <div className="flex gap-2 mb-4">
+                            <div className="relative flex-1">
+                                <Icons.Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Buscar (Nome ou Código)" 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-purple-500 outline-none shadow-sm"
+                                    autoFocus
+                                />
+                            </div>
+                            <button 
+                                onClick={() => openScanner('search')}
+                                className="bg-slate-800 text-white p-3 rounded-xl shadow-sm active:scale-95 transition-transform"
+                            >
+                                <Icons.ScanBarcode className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto space-y-2 mb-20">
+                            {filteredProducts.map(product => {
+                                const inCart = cart.find(c => c.id === product.id);
+                                return (
+                                    <div 
+                                        key={product.id} 
+                                        onClick={() => addToCart(product)}
+                                        className={`bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center active:bg-purple-50 transition-colors ${inCart ? 'ring-2 ring-purple-500 bg-purple-50' : ''}`}
+                                    >
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">{product.brand}</span>
+                                                {product.stock === 0 && <span className="text-[10px] text-rose-500 font-bold">Esgotado</span>}
+                                            </div>
+                                            <h4 className="font-medium text-slate-800">{product.name}</h4>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-purple-600 font-bold">{formatCurrency(product.price)}</p>
+                                                {product.barcode && <span className="text-[10px] text-slate-400 bg-slate-100 px-1 rounded">{product.barcode.slice(-4)}</span>}
+                                            </div>
+                                        </div>
+                                        {inCart ? (
+                                             <div className="bg-purple-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">{inCart.qty}</div>
+                                        ) : (
+                                            <div className="bg-slate-100 text-slate-400 w-8 h-8 rounded-full flex items-center justify-center"><Icons.Plus className="w-5 h-5" /></div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {cart.length > 0 && (
+                            <div className="fixed bottom-[80px] left-0 right-0 px-4">
+                                <div className="bg-slate-800 text-white p-4 rounded-2xl shadow-xl flex justify-between items-center" onClick={() => setIsCheckoutModalOpen(true)}>
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-slate-700 w-10 h-10 rounded-full flex items-center justify-center">
+                                            <span className="font-bold">{cart.reduce((acc, i) => acc + i.qty, 0)}</span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-slate-300">Total</span>
+                                            <span className="font-bold text-lg">{formatCurrency(cartTotal)}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 font-bold text-emerald-400">Finalizar <Icons.ChevronRight className="w-5 h-5" /></div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const renderProducts = () => (
+                <div className="pb-24">
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-2xl font-bold text-slate-800">Meu Estoque</h1>
+                        <button onClick={() => setIsProductModalOpen(true)} className="bg-purple-600 text-white p-2 rounded-lg">
+                            <Icons.Plus className="w-5 h-5" />
+                        </button>
+                    </div>
+                    <div className="relative mb-4">
+                        <Icons.Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" />
+                        <input type="text" placeholder="Buscar produto..." className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-100 border-none focus:ring-2 focus:ring-purple-500 outline-none"/>
+                    </div>
+                    <div className="space-y-2">
+                        {products.map(product => <ProductItem key={product.id} product={product} onSelect={() => {}} />)}
+                    </div>
+                </div>
+            );
+
+            const renderCustomers = () => (
+                <div className="pb-24">
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
+                        <button onClick={() => alert("Funcionalidade de adicionar cliente (simplificada para demo)")} className="bg-purple-600 text-white p-2 rounded-lg"><Icons.Plus className="w-5 h-5" /></button>
+                    </div>
+                    <div className="bg-rose-50 p-4 rounded-xl mb-6 flex justify-between items-center border border-rose-100">
+                        <div>
+                            <p className="text-rose-600 font-medium text-sm">Total em Fiado</p>
+                            <p className="text-2xl font-bold text-rose-700">{formatCurrency(totalDebt)}</p>
+                        </div>
+                        <Icons.AlertCircle className="text-rose-400 w-8 h-8" />
+                    </div>
+                    <div className="space-y-3">
+                        {customers.sort((a,b) => b.debt - a.debt).map(customer => (
+                            <div key={customer.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center">
+                                <div>
+                                    <h4 className="font-bold text-slate-700">{customer.name}</h4>
+                                    <p className="text-sm text-slate-400">{customer.phone}</p>
+                                </div>
+                                <div className="text-right">
+                                     {customer.debt > 0 ? (
+                                         <>
+                                            <p className="text-rose-600 font-bold mb-1">{formatCurrency(customer.debt)}</p>
+                                            <button onClick={() => payDebt(customer.id)} className="text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-bold active:bg-emerald-200">Receber</button>
+                                         </>
+                                     ) : (
+                                         <span className="text-xs bg-slate-100 text-slate-500 px-3 py-1 rounded-full font-medium">Sem dívidas</span>
+                                     )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+
+            const renderSettings = () => (
+                <div className="pb-24">
+                    <div className="flex items-center gap-2 mb-6">
+                        <Icons.Settings className="w-6 h-6 text-purple-600" />
+                        <h1 className="text-2xl font-bold text-slate-800">Perfil & App</h1>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 rounded-2xl shadow-lg shadow-purple-200 text-white mb-6">
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <h3 className="font-bold text-lg mb-1">Use como App</h3>
+                                <p className="text-purple-100 text-sm mb-4 max-w-[200px]">Instale no seu celular para acessar mais rápido e em tela cheia.</p>
+                                <button 
+                                    onClick={() => setIsInstallModalOpen(true)}
+                                    className="bg-white text-purple-600 px-4 py-2 rounded-lg font-bold text-sm shadow-sm active:scale-95 transition-transform"
+                                >
+                                    Instalar Agora
+                                </button>
+                            </div>
+                            <Icons.Smartphone className="w-12 h-12 text-purple-300 opacity-50" />
+                        </div>
+                    </div>
+
+                    <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100 mb-6">
+                        <h3 className="font-bold text-purple-900 mb-2">Dados do Negócio</h3>
+                        <p className="text-sm text-slate-600 mb-4">Seus dados estão sendo salvos automaticamente neste aparelho.</p>
+                        <div className="flex items-center gap-2 text-sm text-slate-500"><Icons.Save className="w-4 h-4" /><span>Salvamento automático ativado</span></div>
+                    </div>
+                    
+                    <h3 className="font-bold text-slate-800 mb-4">Transferir Dados</h3>
+                    <div className="grid grid-cols-1 gap-4">
+                        <button onClick={handleExportData} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 active:scale-95 transition-transform text-left">
+                            <div className="bg-blue-100 p-3 rounded-full"><Icons.Download className="w-6 h-6 text-blue-600" /></div>
+                            <div><h4 className="font-bold text-slate-700">Fazer Backup (Exportar)</h4><p className="text-xs text-slate-500">Baixar arquivo para salvar ou transferir</p></div>
+                        </button>
+                        <label className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 active:scale-95 transition-transform cursor-pointer">
+                            <div className="bg-emerald-100 p-3 rounded-full"><Icons.Upload className="w-6 h-6 text-emerald-600" /></div>
+                            <div><h4 className="font-bold text-slate-700">Restaurar Dados (Importar)</h4><p className="text-xs text-slate-500">Carregar arquivo de outro celular</p></div>
+                            <input type="file" accept=".json" className="hidden" onChange={handleImportData} />
+                        </label>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="bg-slate-50 min-h-screen font-sans text-slate-900 md:max-w-md md:mx-auto md:shadow-2xl md:border-x md:border-slate-200">
+                    <main className="p-5 h-screen overflow-y-auto custom-scrollbar">
+                        {activeTab === 'home' && renderHome()}
+                        {activeTab === 'products' && renderProducts()}
+                        {activeTab === 'sales' && renderSales()}
+                        {activeTab === 'customers' && renderCustomers()}
+                        {activeTab === 'settings' && renderSettings()}
+                    </main>
+
+                    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center md:max-w-md md:mx-auto z-40">
+                        <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center ${activeTab === 'home' ? 'text-purple-600' : 'text-slate-400'}`}><Icons.Home className="w-6 h-6" /><span className="text-[10px] mt-1 font-medium">Início</span></button>
+                        <button onClick={() => setActiveTab('products')} className={`flex flex-col items-center ${activeTab === 'products' ? 'text-purple-600' : 'text-slate-400'}`}><Icons.Package className="w-6 h-6" /><span className="text-[10px] mt-1 font-medium">Estoque</span></button>
+                        <div className="relative -top-6"><button onClick={() => setActiveTab('sales')} className="bg-purple-600 text-white w-14 h-14 rounded-full shadow-lg shadow-purple-200 flex items-center justify-center transform hover:scale-105 transition-transform"><Icons.ShoppingCart className="w-6 h-6" /></button></div>
+                        <button onClick={() => setActiveTab('customers')} className={`flex flex-col items-center ${activeTab === 'customers' ? 'text-purple-600' : 'text-slate-400'}`}><Icons.Users className="w-6 h-6" /><span className="text-[10px] mt-1 font-medium">Fiado</span></button>
+                        <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center ${activeTab === 'settings' ? 'text-purple-600' : 'text-slate-400'}`}><div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${activeTab === 'settings' ? 'bg-purple-100 text-purple-600' : 'bg-slate-200 text-slate-500'}`}><Icons.Settings className="w-4 h-4" /></div><span className={`text-[10px] mt-1 font-medium ${activeTab === 'settings' ? 'text-purple-600' : 'text-slate-400'}`}>Perfil</span></button>
+                    </nav>
+
+                    {/* --- MODAIS E OVERLAYS --- */}
+                    
+                    <InstallGuideModal 
+                        isOpen={isInstallModalOpen} 
+                        onClose={() => setIsInstallModalOpen(false)} 
+                    />
+
+                    <ScannerOverlay 
+                        isOpen={isScannerOpen} 
+                        onClose={() => setIsScannerOpen(false)}
+                        onScan={handleScanResult}
+                    />
+
+                    {isCheckoutModalOpen && (
+                        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center md:max-w-md md:mx-auto">
+                            <div className="bg-white w-full rounded-t-3xl md:rounded-3xl p-6 animate-slide-up max-h-[90vh] overflow-y-auto">
+                                <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold">Resumo da Venda</h2><button onClick={() => setIsCheckoutModalOpen(false)}><Icons.X className="w-6 h-6 text-slate-400" /></button></div>
+                                <div className="space-y-3 mb-6">
+                                    {cart.map(item => (
+                                        <div key={item.id} className="flex justify-between items-center text-sm border-b border-slate-100 pb-2">
+                                            <div><span className="font-bold text-purple-600">{item.qty}x </span><span className="text-slate-700">{item.name}</span></div>
+                                            <span className="font-medium">{formatCurrency(item.price * item.qty)}</span>
+                                        </div>
+                                    ))}
+                                    <div className="flex justify-between items-center text-lg font-bold pt-2"><span>Total</span><span>{formatCurrency(cartTotal)}</span></div>
+                                </div>
+                                <div className="mb-6">
+                                    <label className="block text-sm font-bold text-slate-700 mb-2">Forma de Pagamento</label>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setSaleType('cash')} className={`flex-1 py-3 rounded-xl border font-bold flex flex-col items-center justify-center gap-1 ${saleType === 'cash' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-400'}`}><Icons.Wallet className="w-5 h-5" />À Vista</button>
+                                        <button onClick={() => setSaleType('credit')} className={`flex-1 py-3 rounded-xl border font-bold flex flex-col items-center justify-center gap-1 ${saleType === 'credit' ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 text-slate-400'}`}><Icons.Users className="w-5 h-5" />Fiado</button>
+                                    </div>
+                                </div>
+                                {saleType === 'credit' && (
+                                    <div className="mb-6 animate-fade-in">
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Quem está comprando?</label>
+                                        <div className="space-y-2 max-h-40 overflow-y-auto border border-slate-200 rounded-xl">
+                                            {customers.map(customer => (
+                                                <div key={customer.id} onClick={() => setSelectedCustomerForSale(customer)} className={`p-3 flex justify-between items-center cursor-pointer ${selectedCustomerForSale?.id === customer.id ? 'bg-purple-100' : 'hover:bg-slate-50'}`}><span className="font-medium text-slate-700">{customer.name}</span>{selectedCustomerForSale?.id === customer.id && <Icons.Check className="w-4 h-4 text-purple-600" />}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <button onClick={finalizeSale} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-transform">Confirmar Venda</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {isProductModalOpen && (
+                        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white w-full max-w-sm rounded-2xl p-6">
+                                <h2 className="text-xl font-bold mb-4">Novo Produto</h2>
+                                <div className="space-y-3">
+                                    <input className="w-full p-3 bg-slate-100 rounded-lg outline-none" placeholder="Nome do produto" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                                    
+                                    <div className="flex gap-2">
+                                        <input 
+                                            className="w-full p-3 bg-slate-100 rounded-lg outline-none font-mono text-sm" 
+                                            placeholder="Código de barras"
+                                            value={newProduct.barcode} 
+                                            onChange={e => setNewProduct({...newProduct, barcode: e.target.value})}
+                                        />
+                                        <button 
+                                            onClick={() => openScanner('new_product')}
+                                            className="bg-slate-800 text-white p-3 rounded-lg flex items-center justify-center"
+                                        >
+                                            <Icons.ScanBarcode className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <input className="w-full p-3 bg-slate-100 rounded-lg outline-none" placeholder="Marca" value={newProduct.brand} onChange={e => setNewProduct({...newProduct, brand: e.target.value})} />
+                                        <input type="number" className="w-1/3 p-3 bg-slate-100 rounded-lg outline-none" placeholder="Qtd" value={newProduct.stock} onChange={e => setNewProduct({...newProduct, stock: e.target.value})} />
+                                    </div>
+                                    <div className="flex gap-3">
+                                         <input type="number" className="w-1/2 p-3 bg-slate-100 rounded-lg outline-none" placeholder="Custo (R$)" value={newProduct.cost} onChange={e => setNewProduct({...newProduct, cost: e.target.value})} />
+                                        <input type="number" className="w-1/2 p-3 bg-slate-100 rounded-lg outline-none" placeholder="Venda (R$)" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
+                                    </div>
+                                </div>
+                                <div className="flex gap-3 mt-6">
+                                    <button onClick={() => setIsProductModalOpen(false)} className="flex-1 py-3 text-slate-500 font-bold">Cancelar</button>
+                                    <button onClick={handleAddProduct} className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-bold">Salvar</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* VERSION INDICATOR FOR DEBUGGING */}
+                    <div className="fixed top-0 right-0 p-1 text-[8px] text-slate-300 pointer-events-none z-50">
+                        v1.1 (Web)
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
